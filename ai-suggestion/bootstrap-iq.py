@@ -84,4 +84,8 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\033[1;33m⚠️ Bootstrapping interrupted. Exiting safely.\033[0m")
+        sys.exit(0)

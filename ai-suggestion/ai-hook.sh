@@ -144,9 +144,22 @@ ai() {
         return 127
     fi
 
-    # Intercept system management parameters
-    if [[ "$1" == "--compile" || "$1" == "--bootstrap" ]]; then
+    # Intercept manual compile parameter
+    if [[ "$1" == "--compile" ]]; then
         "$_AI_PYTHON_BIN" "$_AI_SCRIPT_PATH" "$1"
+        return 0
+    fi
+
+    # Intercept bootstrap parameter and execute bootstrap-iq.py directly
+    if [[ "$1" == "--bootstrap" ]]; then
+        local bootstrap_script="$HOME/.config/local-ai/ai-suggestion/bootstrap-iq.py"
+        if [[ -f "$bootstrap_script" ]]; then
+            # Automatically pass ~/.bashrc to the bootstrap script
+            "$_AI_PYTHON_BIN" "$bootstrap_script" "$HOME/.bashrc"
+        else
+            # Fallback if bootstrap-iq.py is missing
+            "$_AI_PYTHON_BIN" "$_AI_SCRIPT_PATH" "$1"
+        fi
         return 0
     fi
 
