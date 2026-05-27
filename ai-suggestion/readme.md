@@ -1,4 +1,4 @@
-# AI-Suggestion Agent (v0.6.5)
+# AI-Suggestion Agent (v0.6.6)
 
 
 <img alt="20260526_173110" src="https://github.com/user-attachments/assets/e322df2e-5711-47d1-a2f0-e23de19755af" />

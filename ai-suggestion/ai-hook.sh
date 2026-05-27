@@ -120,6 +120,12 @@ ai_handle_missing() {
 }
 
 command_not_found_handle() {
+    # 1. Check if local server is online (port 8080)
+    # If offline, instantly bypass the hook and let Bash output standard error (No Python executed)
+    if ! (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
+        return 127
+    fi
+
     if [[ "$1" == --* ]]; then
         return 127
     fi
