@@ -130,19 +130,21 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
             response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
             first_chunk = True
             for chunk in response.iter_lines():
-                if chunk:
-                    decoded = chunk.decode("utf-8").replace("data: ", "")
-                    if decoded == "[DONE]":
-                        break
-                    try:
-                        content = json.loads(decoded)["choices"][0]["delta"].get("content", "")
-                        if content:
-                            if first_chunk:
-                                print("\033[1;32mAI: \033[0m", end="", flush=True)
-                                first_chunk = False
-                            print(content, end="", flush=True)
-                        except Exception:
-                            pass
+                if not chunk:
+                    continue
+                decoded = chunk.decode("utf-8").replace("data: ", "").strip()
+                if decoded == "[DONE]":
+                    break
+                try:
+                    data = json.loads(decoded)
+                    content = data["choices"][0]["delta"].get("content", "")
+                    if content:
+                        if first_chunk:
+                            print("\033[1;32mAI: \033[0m", end="", flush=True)
+                            first_chunk = False
+                        print(content, end="", flush=True)
+                except Exception:
+                    pass
             print()
         except requests.exceptions.RequestException:
             print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m")
@@ -161,19 +163,21 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                     response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
                     first_chunk = True
                     for chunk in response.iter_lines():
-                        if chunk:
-                            decoded = chunk.decode("utf-8").replace("data: ", "")
-                            if decoded == "[DONE]":
-                                break
-                            try:
-                                content = json.loads(decoded)["choices"][0]["delta"].get("content", "")
-                                if content:
-                                    if first_chunk:
-                                        print("\033[1;32mAI: \033[0m", end="", flush=True)
-                                        first_chunk = False
-                                    print(content, end="", flush=True)
-                            except Exception:
-                                pass
+                        if not chunk:
+                            continue
+                        decoded = chunk.decode("utf-8").replace("data: ", "").strip()
+                        if decoded == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(decoded)
+                            content = data["choices"][0]["delta"].get("content", "")
+                            if content:
+                                if first_chunk:
+                                    print("\033[1;32mAI: \033[0m", end="", flush=True)
+                                    first_chunk = False
+                                print(content, end="", flush=True)
+                        except Exception:
+                            pass
                     print("\n")
                 except requests.exceptions.RequestException:
                     print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m\n")
