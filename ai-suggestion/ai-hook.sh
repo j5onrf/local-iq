@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# AI Suggestion v0.6.5 [j5onrf] [05-26-26]
+# AI Suggestion v0.6.6 [j5onrf] [05-26-26]
 
 # 1. Early-exit if shell is not interactive
 [[ $- != *i* ]] && return
@@ -132,6 +132,12 @@ command_not_found_handle() {
 # 3. DIRECT CLI WRAPPER
 # ==============================================================================
 ai() {
+    # Check if local llama-server is online on port 8080 (fails instantly if offline)
+    if ! (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
+        echo "bash: command not found: ai (Local AI server is offline)"
+        return 127
+    fi
+
     # Intercept system management parameters
     if [[ "$1" == "--compile" || "$1" == "--bootstrap" ]]; then
         "$_AI_PYTHON_BIN" "$_AI_SCRIPT_PATH" "$1"

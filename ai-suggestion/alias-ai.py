@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# AI Suggestion v0.6.5 [j5onrf] [05-26-26]
+# AI Suggestion v0.6.6 [j5onrf] [05-26-26]
 
 import sys
 import re
@@ -102,9 +102,10 @@ if len(sys.argv) > 1 and sys.argv[1] == "--compile":
         sys.exit(0)
     sys.exit(1)
 
-# Consolidated Teach / Learn Mode (Quick-add)
+# Teach Mode (Supports both CLI Quick-add and Editor mode)
 if len(sys.argv) > 1 and (sys.argv[1] == "--teach" or sys.argv[1] == "--learn"):
     if len(sys.argv) >= 4:
+        # Quick-add mode (ai --teach "command" "intent")
         cmd_to_learn = sys.argv[2]
         intent_to_learn = sys.argv[3]
         try:
@@ -140,9 +141,11 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                                 print("\033[1;32mAI: \033[0m", end="", flush=True)
                                 first_chunk = False
                             print(content, end="", flush=True)
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
             print()
+        except requests.exceptions.RequestException:
+            print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m")
         except KeyboardInterrupt:
             print("\n\033[1;33mInterrupted.\033[0m")
         sys.exit(0)
@@ -154,23 +157,26 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                 if not query.strip():
                     continue
                 payload = {"messages": [{"role": "user", "content": query}], "stream": True}
-                response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
-                first_chunk = True
-                for chunk in response.iter_lines():
-                    if chunk:
-                        decoded = chunk.decode("utf-8").replace("data: ", "")
-                        if decoded == "[DONE]":
-                            break
-                        try:
-                            content = json.loads(decoded)["choices"][0]["delta"].get("content", "")
-                            if content:
-                                if first_chunk:
-                                    print("\033[1;32mAI: \033[0m", end="", flush=True)
-                                    first_chunk = False
-                                print(content, end="", flush=True)
-                        except Exception:
-                            pass
-                print("\n")
+                try:
+                    response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
+                    first_chunk = True
+                    for chunk in response.iter_lines():
+                        if chunk:
+                            decoded = chunk.decode("utf-8").replace("data: ", "")
+                            if decoded == "[DONE]":
+                                break
+                            try:
+                                content = json.loads(decoded)["choices"][0]["delta"].get("content", "")
+                                if content:
+                                    if first_chunk:
+                                        print("\033[1;32mAI: \033[0m", end="", flush=True)
+                                        first_chunk = False
+                                    print(content, end="", flush=True)
+                            except Exception:
+                                pass
+                    print("\n")
+                except requests.exceptions.RequestException:
+                    print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m\n")
         except KeyboardInterrupt:
             print("\n\033[1;33mExiting conversation.\033[0m")
             sys.exit(0)
