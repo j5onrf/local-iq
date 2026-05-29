@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+# --- WORKSPACE 1: Brave Beta ---
+if pgrep -f "brave-origin-beta" > /dev/null; then
+    hyprctl dispatch movetoworkspacesilent "1,class:brave-origin-beta" >/dev/null 2>&1
+else
+    hyprctl dispatch exec "[workspace 1 silent]" brave-origin-beta >/dev/null 2>&1
+fi
+
+# --- WORKSPACE 2: Nautilus (Left) ---
+# Switched to -f to handle extended desktop bus names smoothly
+if pgrep -f "nautilus" > /dev/null; then
+    hyprctl dispatch movetoworkspacesilent "2,class:org.gnome.Nautilus" >/dev/null 2>&1
+else
+    hyprctl dispatch exec "[workspace 2 silent]" nautilus >/dev/null 2>&1
+    sleep 0.25 
+fi
+
+# --- WORKSPACE 2: Gnome Text Editor (Right) ---
+# Switched to -f to cleanly bypass the 15-character limitation
+if pgrep -f "gnome-text-editor" > /dev/null; then
+    hyprctl dispatch movetoworkspacesilent "2,class:org.gnome.TextEditor" >/dev/null 2>&1
+else
+    hyprctl dispatch exec "[workspace 2 silent]" gnome-text-editor >/dev/null 2>&1
+fi
+
+echo "Workspace reset complete: State --Work"

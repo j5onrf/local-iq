@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+# Get the PID of the currently active terminal so we don't accidentally terminate ourselves
+current_pid=$(hyprctl activewindow -j | jq -r '.pid')
+
+# Loop through all graphical clients
+hyprctl clients -j | jq -r '.[].pid' | while read -r pid; do
+    if [ -n "$pid" ] && [ "$pid" != "null" ]; then
+        # Safety Check: Skip the terminal running this command
+        if [ "$pid" -eq "$current_pid" ]; then
+            continue
+        fi
+        
+        # Safe termination: Triggers auto-save states or save prompts
+        kill "$pid" >/dev/null 2>&1
+    fi
+done
+
+sleep 0.1
+hyprctl dispatch workspace 1 >/dev/null 2>&1

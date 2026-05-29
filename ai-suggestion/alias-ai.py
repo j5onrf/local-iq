@@ -453,5 +453,5 @@ if matched_base:
     print("\n".join(out_lines))
     sys.exit(0)
 else:
-    print("Command Found (or Fallback Failed)")
+    print("Command Not Found") # <--- FIXED THIS TYPO HERE!
     sys.exit(1)

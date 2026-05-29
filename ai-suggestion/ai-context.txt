@@ -20,6 +20,9 @@ uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bu
 
 uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bunker" --app=https://open.spotify.com/ >/dev/null 2>&1 ---> spotify music, spotify
 
+basepage ---> /home/j5/.config/local-ai/ai-basepage/ai-basepage.py
+get updates ---> /home/j5/.config/local-ai/ai-basepage/ai-basepage.py
+
 # --- Agentic Tools ---
 [TOOL] date ---> time, date
 [TOOL] df -h / ---> show disk usage, nvme drive
@@ -27,12 +30,18 @@ uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bu
 # --- Hyprland Commands ---
 [TOOL] hyprctl clients ---> hyprland clients, list open windows, show active apps, is brave open, what is running, brave windows open
 
+# --- Hyprland Workflow State Profiles ---
+~/.config/local-ai/ai-suggestion/tools/hyprstate/work ---> hyprstate work, setup my desk
+~/.config/local-ai/ai-suggestion/tools/hyprstate/clean ---> hyprstate clean, setup my desk
+~/.config/local-ai/ai-suggestion/tools/hyprstate/media ---> hyprstate media, setup my desk
+
 # --- Calendar ---
 [TOOL] date; cal -s ---> calendar, what is today's date
-# --- The Resource Auditor (RAM & Process Hog Finder) ---
 
 # --- System Monitor & Diagnostics ---
-[TOOL] ~/.config/local-ai/ai-suggestion/ai-system-diagnosis ---> why is my system slow, check system health, are any services failing, what is eating my cpu, show active processes, do I have enough RAM, system diagnostics, inspect systemd, check resource usage, show system status
+[TOOL] ~/.config/local-ai/ai-suggestion/tools/ai-system-diagnosis ---> why is my system slow, check system health, are any services failing, what is eating my cpu, show active processes, do I have enough RAM, system diagnostics, inspect systemd, check resource usage, show system status
+# --- System Maintenance & Server Controls ---
+~/.config/local-ai/ai-suggestion/tools/kill-ai-servers ---> stop server, -kill servers, stop llama server, stop llama.cpp, killserver
 
 # --- Weather ---
 # 1. Simple One-Line Weather Tool (Quick/Short)
@@ -45,6 +54,4 @@ uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bu
 cd ~/Documents ---> go to documents, cd documents, open documents
 # 2. Active AI Tool: Ask the AI conversationally to pop open your graphical file manager
 [TOOL] xdg-open ~/Documents ---> open my documents folder, show my documents, launch documents folder
-
-# --- Bindings.conf ---
 

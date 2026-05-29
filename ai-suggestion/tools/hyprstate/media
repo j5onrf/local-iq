@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# --- Check if YouTube Music webapp is already running ---
+if pgrep -f "music.youtube.com" > /dev/null; then
+    # If it's already open, silently slide it over to workspace 7
+    hyprctl dispatch movetoworkspacesilent "7,title:YouTube Music" >/dev/null 2>&1
+else
+    # If it isn't running, execute it silently directly onto workspace 7
+    hyprctl dispatch exec "[workspace 7 silent]" omarchy-launch-webapp https://music.youtube.com/ >/dev/null 2>&1
+fi
+
+# --- Focus Workspace 7 ---
+# Instantly switch your view to your dedicated music display
+hyprctl dispatch workspace 7 >/dev/null 2>&1

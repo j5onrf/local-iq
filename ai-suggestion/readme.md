@@ -1,10 +1,23 @@
-# AI-Suggestion Agent (v0.6.6)
+# AI-Suggestion Agent (v0.7.1-alpha)
 
-<img alt="20260526_173110" src="https://github.com/user-attachments/assets/e322df2e-5711-47d1-a2f0-e23de19755af" />
+<img alt="20260528_175036" src="https://github.com/user-attachments/assets/7f90513b-0b29-41e2-8471-055a00e8371c" />
 
 `Qwen3.5-2B-UD-Q4_K_XL+` `Python 3.10+` `Bash 4.0+` `Zsh 5.0+` `OpenAI-compatible`
 
+> ⚠️ **Alpha Release Notice:** This project is currently in active **Alpha** development and is subject to rapid, drastic architectural changes. Our core design goals are to maintain an extremely lightweight, minimal shell footprint while empowering your command line with high-performance local AI tool workflows.
+
 An adaptive, local AI shell agent designed to conform completely to your workflow. By analyzing your terminal environment and learning your custom aliases, it intercepts command typos, syntax errors, or forgotten flags to seamlessly suggest the exact command you meant to run.
+
+---
+
+## Key Highlights & Features
+
+* **Zero-Overhead, On-Demand Architecture:** Strictly **0% idle memory and CPU footprint**. The agent runs synchronously only for the millisecond you press `Enter` on a typo—no background pollers, timers, or daemons.
+* **Sub-2ms Local Token Matching:** C-compiled Sørensen-Dice matrix set-intersections match jumbled or rephrased typos instantly, completely bypassing the local LLM.
+* **Real-Time Context Injection (RAG):** Map standard terminal utilities or custom scripts as `[TOOL]` commands [3]. Your local LLM dynamically executes them, reads their raw outputs, and answers conversational system questions in **one single pass** [2].
+* **Universal Configuration Mapper:** A single command (`ai --map`) to ingest `.bashrc`, `.zshrc`, `hyprland.conf`, `.lua` keybinds, or custom configurations, automatically generating semantic intents via your local LLM [3].
+* **Interactive Suggestion Carousel:** If multiple local commands match a typo, cycle through your top 3 matches cleanly using your **Up** and **Down** arrow keys with high-contrast visual intent cues.
+* **Bulletproof Offline Resilience:** If your local AI server is offline, your typo suggestions, custom aliases, and interactive teaching loops continue to work perfectly offline. Only conversational chat requests are blocked.
 
 ---
 
@@ -15,44 +28,62 @@ An adaptive, local AI shell agent designed to conform completely to your workflo
 * **Bash 4.0+** or **Zsh 5.0+**
 
 ---
+
 ## System Architecture Overview
 
-```text
-                        [ Direct Shell Typo ]
-                                  │
-                                  ▼
-                       [ Token Matrix Search ]
-                      Sørensen-Dice Coefficient
-                                  │
-             ┌────────────────────┴────────────────────┐
-             ▼                                         ▼
-      ( Match Found )                           ( No Match Found )
-             │                                         │
-             ▼                                         ▼
-     [ Suggestion Menu ]                      [ Manual Teach Prompt ]
-   [Enter] / [t] / [Cancel]                 "Would you like to teach...?"
-             │                                         │
-   ┌─────────┼─────────┐                     ┌─────────┴─────────┐
-   ▼         ▼         ▼                     ▼                   ▼
-[Enter]    [ t ]    [Any Key]             [  y  ]             [  n  ]
-   │         │         │                     │                   │
-   ▼         ▼         ▼                     ▼                   ▼
-Execute   Override   Cancel               Override             Cancel
-  Cmd   Auto-Compile                    Auto-Compile
-```
+### A. The Typo Correction Loop (0% Idle CPU / Offline-Safe)
 
 ```text
-                     [ ai <conversational query> ]
-                                  │
-                                  ▼
-                     [ Local Conversational LLM ]
-                     (Streams Response to Shell)
+                         [ Direct Shell Typo ]
+                                   │
+                                   ▼
+                        [ Token Matrix Search ]
+                       Sørensen-Dice Coefficient
+                                   │
+              ┌────────────────────┴────────────────────┐
+              ▼                                         ▼
+       ( Match Found )                           ( No Match Found )
+              │                                         │
+              ▼                                         ▼
+      [ Match Carousel ]                       [ Manual Teach Prompt ]
+    Up/Down Arrow Selector                    "Would you like to teach...?"
+              │                                         │
+    ┌─────────┼─────────┐                     ┌─────────┴─────────┐
+    ▼         ▼         ▼                     ▼                   ▼
+[Enter]     [ t ]    [Any Key]             [  y  ]             [  n  ]
+    │         │         │                     │                   │
+    ▼         ▼         ▼                     ▼                   ▼
+ Execute   Override   Cancel               Override             Cancel
+   Cmd    Auto-Compile                     Auto-Compile
 ```
 
-1. **Layer 1 (Local Matrix Search):** Checks shell typos directly against your `ai-context.txt` baseline. It calculates mathematical overlap weights using the **Sørensen-Dice Coefficient** [1]. Rephrased or jumbled inputs match instantly (~3–5ms latency) while completely bypassing the LLM.
-2. **Zero-LLM Fallback (Interactive Teach Loop):** If a typo has no local mapping, the shell hook bypasses the LLM to protect system performance and eliminate translation lag. It drops instantly to a manual teach prompt, allowing you to bind the custom phrase to its command and auto-compile it directly from your shell.
-3. **Layer 2 (Conversational Local LLM):** Executed exclusively when invoking the `ai` command prefix (e.g., `ai --chat` or `ai "what is 2 + 45"`). It establishes a direct streaming session with your local `llama-server` to provide natural language answers.
+### B. The Conversational Agent (On-Demand / Real-Time RAG)
 
+```text
+                         [ ai <conversational query> ]
+                                      │
+                                      ▼
+                        [ 0ms TCP Handshake Check ] ──(Offline)──► [Exit 127]
+                                      │ (Online)
+                                      ▼
+                           [ Tool-Intent Match? ]
+                                      │
+                     ┌────────────────┴────────────────┐
+                     ▼                                 ▼
+                  ( Yes )                           ( No )
+                     │                                 │
+                     ▼                                 ▼
+            [ Execute local tool ]              [ Standard Chat ]
+            Inject Context (RAG)                 Generic Response
+                     │                                 │
+                     └────────────────┬────────────────┘
+                                      │
+                                      ▼
+                         [ Local Conversational LLM ]
+                         (Streams Response to Shell)
+```
+
+---
 
 ## Installation & Setup
 
@@ -63,7 +94,9 @@ Choose one of the following commands to install the core scripts directly into y
 **Option A: Universal Setup (No dependencies required)**
 
 ```bash
-mkdir -p ~/.config/local-ai/ai-suggestion && curl -sL https://github.com/j5onrf/local-ai/tarball/main | tar -xzf - --strip-components=2 -C ~/.config/local-ai/ai-suggestion "*/ai-suggestion"
+mkdir -p ~/.config/local-ai/ai-suggestion && \
+curl -sL https://github.com/j5onrf/local-ai/tarball/main | \
+tar -xzf - --wildcards --strip-components=2 -C ~/.config/local-ai/ai-suggestion "*/ai-suggestion"
 ```
 
 **Option B: Using Node.js/npx**
@@ -72,88 +105,50 @@ mkdir -p ~/.config/local-ai/ai-suggestion && curl -sL https://github.com/j5onrf/
 mkdir -p ~/.config/local-ai && npx degit j5onrf/local-ai/ai-suggestion ~/.config/local-ai/ai-suggestion
 ```
 
-### 2. Append to `.bashrc`
+### 2. Append the Hook to Your Shell Config
 
-Add the background hook process to your environment so the suggestion engine is always active when a new terminal initializes:
-
+#### For Bash (`~/.bashrc`):
 ```bash
 cat << 'EOF' >> ~/.bashrc
 
-# AI-Suggestion Hook
-if [ -f "$HOME/.config/local-ai/ai-suggestion/ai-hook.sh" ]; then
-    source "$HOME/.config/local-ai/ai-suggestion/ai-hook.sh"
-fi
-EOF
-```
-
-<details>
-<summary><b>Zsh Setup (Alternative Shell)</b></summary>
-
-If you are using **Zsh** instead of Bash, you can integrate the suggestion agent using your `.zshrc` file:
-
-### 1. Append the Zsh Hook to `.zshrc`
-Add the background hook process to your environment so the suggestion engine is loaded when your Zsh terminal initializes:
-
-```bash
-cat << 'EOF' >> ~/.bashrc
-
-# AI-Suggestion Hook
+# AI-Suggestion Hook (Bash)
 [ -f "$HOME/.config/local-ai/ai-suggestion/ai-hook.sh" ] && source "$HOME/.config/local-ai/ai-suggestion/ai-hook.sh"
 EOF
 ```
 
-### 2. Run the Bootstrap Step
-Reload your Zsh shell, and run the bootstrapper:
+### 3. Ingest Your Configurations (`--map`)(Optional)
+
+Use the high-speed Universal Configuration Mapper to automatically parse your system shortcuts and generate semantic intents via your local LLM [2, 3]:
+
+**A. Map your terminal aliases:**
 ```bash
-source ~/.zshrc
-ai --bootstrap
-```
-This automatically parses your `.zshrc` aliases and writes your baseline intents master.
-</details>
-
-### 3. Build the AI Context Cache (`--bootstrap`)
-
-To seed the agent with your current environment profile and baseline system knowledge, initialize the engine via the CLI wrapper:
-
-```bash
-ai --bootstrap
+ai --map ~/.bashrc
 ```
 
-This parses your active shell aliases and generates your central `ai-context.txt` configuration master.
-
-> ⚠️ **Important Note for Smaller Models:** Smaller local models can occasionally struggle to structure the initial bootstrap execution perfectly. After running your bootstrap step, always open and inspect your `ai-context.txt` file to ensure it compiled cleanly and accurately.
+**B. Map your desktop window manager keybinds:**
+```bash
+ai --map ~/.config/hypr/bindings.conf
+```
 
 ---
 
-## Core Commands & Compilation
+## Core Commands & Configuration
 
-The system manages its high-speed binary token matrix index (`ai-context.idx`) seamlessly using an automated synchronization engine, completely eliminating the need for manual upkeep.
+The system manages its binary token matrix index (`ai-context.idx`) using an automated synchronization engine.
 
-### Automatic Compilation on the Fly
-If you manually open, edit, clean, or strip lines from `ai-context.txt` using your preferred text editor (such as VS Code, Vim, or Nano), you do not need to run any manual commands afterward. 
-
-The next time you type any command or interact with the agent, the system automatically detects that the configuration file was modified and rebuilds your high-speed binary lookup index (`ai-context.idx`) in under 2ms before executing.
-
-### Optional Manual Compilation
-If you want to explicitly force a rebuild of the speed index (for diagnostic verification or sanity checks), you can run:
-
-```bash
-ai --compile
-```
-
-This manually parses your configuration file, builds the optimized mathematical table, and prints a success confirmation to your terminal.
+* **Auto-Compile on Change:** Whenever you manually open and edit `ai-context.txt` in your favorite text editor, the script automatically detects the file changes and recompiles your speed index in under 2ms on your very next execution.
+* **Manual Compilation:** Force an index rebuild at any time:
+  ```bash
+  ai --compile
+  ```
+* **Interactive Teaching:** Register custom mappings directly from your terminal prompt:
+  ```bash
+  ai --teach
+  ```
 
 ---
 
-## Configuration (`ai-context.txt`)
+## Detailed Documentation
+For deep dives into writing your own active system `[TOOL]` configurations, configuring dual-shell settings, or customizing prompt-engineering safety overrides, refer to the full **[documentation.md](documentation.md)**.
 
-The `ai-context.txt` file is the master command center for the agent's knowledge base.
 
-* **Manual Control:** Because your context file belongs entirely to your system and your specific customizations, you can manually open and edit this file at any time to explicitly instruct the AI on workflows, scripts, or specific behaviors you want it to prioritize.
-* **Automated Training:** Any correction rules or adjustments you input via the `[t] Edit` loop are safely written to this file with zero formatting gaps or artifacts, ensuring the terminal environment adapts to your operational habits permanently.
-
----
-
-### References
-[1] Sørensen, T. J. (1948). "A method of establishing groups of equal amplitude in plant sociology based on similarity of species content." *Kongelige Danske Videnskabernes Selskab*, 5(4), 1–34.
-```

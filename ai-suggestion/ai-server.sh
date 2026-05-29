@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Example: baseline server config
 
 # Updated to use valid 2026 llama-server flags
 llama-server \
-  -m /home/user/models/Qwen3.5-2B-UD-Q4_K_XL.gguf \
+  -m /home/j5/ollama_backup/Qwen3.5-2B-UD-Q4_K_XL.gguf \
   -c 8192 \
   -t 6 \
   -b 512 \

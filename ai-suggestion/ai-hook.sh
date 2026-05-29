@@ -31,7 +31,15 @@ ai_handle_missing() {
     raw_output="$($_AI_PYTHON_BIN "$_AI_SCRIPT_PATH" "$intent")"
 
     if [[ -z "$raw_output" || "$raw_output" == *"Command Not Found"* ]]; then
-        return 127
+        cmd=""
+    elif [[ "$raw_output" == "NEW_SUGGESTION:"* ]]; then
+        is_new=true
+        local payload="${raw_output#NEW_SUGGESTION:}"
+        cmd="${payload%%--->*}"
+        local discover_intent="${payload#*--->}"
+    else
+        cmd="$raw_output"
+        local discover_intent="$intent"
     fi
 
     # Read multiline output into an array using native, high-speed shell methods
@@ -42,7 +50,18 @@ ai_handle_missing() {
         mapfile -t cmd_opts <<< "$raw_output"
     fi
 
-    local num_opts=${#cmd_opts[@]}
+    # Sanitize & Filter: Ensure only well-formed, non-empty "intent|||cmd" mappings exist
+    local clean_opts=()
+    for opt in "${cmd_opts[@]}"; do
+        if [[ "$opt" == *"|||"* && "$opt" != "|||"* ]]; then
+            local check_cmd="${opt#*|||}"
+            if [[ -n "$check_cmd" ]]; then
+                clean_opts+=("$opt")
+            fi
+        fi
+    done
+
+    local num_opts=${#clean_opts[@]}
     local current_idx=0
 
     # ==============================================================================
@@ -53,7 +72,7 @@ ai_handle_missing() {
         tput civis 2>/dev/null
 
         while true; do
-            local current_entry="${cmd_opts[$current_idx]}"
+            local current_entry="${clean_opts[$current_idx]}"
             # Split the entry into intent and command parts
             local current_intent="${current_entry%%|||*}"
             local current_cmd="${current_entry#*|||}"
@@ -139,6 +158,36 @@ ai_handle_missing() {
         done
         tput cnorm 2>/dev/null
     fi
+
+    # ==============================================================================
+    # 2. TOTAL FAILURE: Drop to Manual Teach Loop
+    # ==============================================================================
+    echo -e "\e[1;33mℹ \"$intent\" is not mapping to a known automation.\e[0m"
+    read -p "Would you like to teach the agent this custom phrase? (y/N): " -n 1 learn_key
+    echo
+
+    if [[ "$learn_key" =~ ^[Yy]$ ]]; then
+        echo -e "\e[1;34mEnter the exact executable command this should map to:\e[0m"
+        read -e -p "❯ " target_command
+
+        if [[ -n "$target_command" ]]; then
+            local learn_output
+            learn_output="$($_AI_PYTHON_BIN "$_AI_SCRIPT_PATH" --learn "$target_command" "$intent")"
+            
+            if [[ "$learn_output" == "SUCCESS" ]]; then
+                echo -e "\e[1;32m✓ Memory updated! Running command now...\e[0m"
+                eval "$target_command"
+                return 0
+            else
+                echo -e "\e[1;31m$learn_output\e[0m"
+                return 1
+            fi
+        else
+            echo "Cancelled. Nothing added to agent memory."
+            return 0
+        fi
+    fi
+    return 127
 }
 
 command_not_found_handle() {
@@ -160,7 +209,7 @@ ai() {
         return 127
     fi
 
-    # Intercept manual compile and map parameters (passes all arguments correctly)
+    # Intercept manual compile and map parameters
     if [[ "$1" == "--compile" || "$1" == "--map" ]]; then
         "$_AI_PYTHON_BIN" "$_AI_SCRIPT_PATH" "$@"
         return 0

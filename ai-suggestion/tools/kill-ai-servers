@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+# --- FUNCTION FOR TARGETED TERMINATION ---
+stop_target() {
+    local target="$1"
+    
+    if pgrep -x "$target" > /dev/null; then
+        pkill -15 -x "$target"
+        # Give it up to 2 seconds to release memory mapping gracefully
+        for i in {1..20}; do
+            if ! pgrep -x "$target" > /dev/null; then break; fi
+            sleep 0.1
+        done
+        # Force stop if it hangs
+        pkill -9 -x "$target" 2>/dev/null
+        return 0
+    else
+        return 1
+    fi
+}
+
+# 1. Kill both active inference targets completely
+stop_target "llama-cli"
+stop_target "llama-server"
+
+# 2. Kill any terminal app instances holding an open AI agent wrapper session
+pkill -f "AI "
+
+# 3. Flush pages from system memory to instantly reclaim the massive model RAM cache
+sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+
+# 4. Fire visual feedback to your desktop environment
+notify-send "AI Engine" "All Engines & Windows Shutdown. System RAM Flushed." -i system-shutdown
