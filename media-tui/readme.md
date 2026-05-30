@@ -71,7 +71,6 @@ Clone your script repository or copy the code block into a destination folder, m
 ```bash
 chmod +x media.py
 ./media.py
-./media.sh
 
 ```
 
