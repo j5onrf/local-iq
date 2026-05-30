@@ -2,7 +2,7 @@
 
 <img alt="20260528_175036" src="https://github.com/user-attachments/assets/7f90513b-0b29-41e2-8471-055a00e8371c" />
 
-`Qwen3.6-35B-A3B` `Gemini-3.1-Flash-Lite` `Python 3.10+` `Bash 4.0+` `OpenAI-Compatible API`
+`Qwen-3.5-2b/3.6-35B-A3B+` `Gemini-3.1-Flash-Lite` `Python 3.10+` `Bash 4.0+` `OpenAI-Compatible API`
 
 > ⚠️ **Alpha Release Notice:** This project is currently in active **Alpha** development and is subject to rapid, drastic changes. Our core design goals are to maintain an extremely lightweight, minimal shell footprint while empowering your command line with high-performance local/cloud AI tool workflows.
 
@@ -36,12 +36,12 @@ The project is designed to be an infinitely extensible ecosystem of custom tools
 * **`update-inspector` (Pending Upgrades Analyzer):** Safely parses pending repository and AUR updates in memory, allowing your LLM to warn you about critical library dependencies or package keyring overrides before running upgrades [1.1.3].
 * **`kill-ai-servers` (Resource Release Utility):** Instantly terminates background local AI inference servers to release system RAM back to your operating system on demand [1.1.3].
 
-### B. Workspace Awareness & Desktop Control
-* **`hyprstate` (Compositor & Window Monitor):** Inspects active windows, current workspaces, and session statistics, giving your conversational AI "eyes" on your graphical desktop environment [1.1.2].
+### B. Workspace Layouts & Workflow Profiles
+* **`hyprstate` (Desktop State & Profile Setter):** Instantly configures your Hyprland workspace layouts on demand (such as `work`, `media`, or `clean`), cleanly launching, assigning, and moving background applications (Brave, Nautilus, editors) to their designated monitors and workspaces [1.1.2, 1.2.9].
 
 ### C. TUI & Utility Integrations
 * **`basepage-tui` (RSS & Article Reader Integration):** Launches customized terminal user interfaces, feeds, and articles directly inside your active terminal window.
-* **`ai-summary` (Text & Pipeline Summarizer):** Integrates with custom text and code summarization engines to digest complex documents, pipeline logs, or data structures on demand.
+* **`ai-summary` (Text & Pipeline Summarizer):** Integrates with custom text, log, and code summarization engines to digest complex documents, fully compatible with the **Koko automated text-to-speech (TTS) read-aloud** feature for hands-free listening.
 
 > **Extensibility:** You can easily wrap any custom shell script, Python routine, terminal utility, or third-party CLI tool into your context database to build your own personalized system assistant [3].
 
@@ -156,10 +156,7 @@ export GEMINI_API_KEY="AIzaSyYourGeminiKey"
 The system manages its binary token matrix index (`ai-context.idx`) using an automated synchronization engine.
 
 * **Auto-Compile on Change:** Whenever you manually open and edit `ai-context.txt` in your favorite text editor, the script automatically detects the file changes and recompiles your speed index in under 2ms on your very next execution.
-* **Manual Compilation:** Force an index rebuild at any time:
-  ```bash
-  ai --compile
-  ```
+
 * **Interactive Teaching:** Register custom mappings directly from your terminal prompt:
   ```bash
   ai --teach
@@ -170,4 +167,4 @@ The system manages its binary token matrix index (`ai-context.idx`) using an aut
 ## Detailed Documentation
 For deep dives into writing your own active system `[TOOL]` configurations, configuring dual-shell settings, or customizing prompt-engineering safety overrides, refer to the full **[documentation.md](documentation.md)**.
 
-
+---
