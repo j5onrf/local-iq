@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Functional Inline Media Controller (Pure Reactive Zero-Stutter)
+# Functional Inline Media Controller (Pure Reactive)
 
 if ! command -v playerctl >/dev/null 2>&1; then
     echo -e " \033[1;31mError:\033[0m playerctl is not installed."
