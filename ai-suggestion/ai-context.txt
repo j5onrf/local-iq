@@ -23,6 +23,7 @@ uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bu
 ~/.config/local-ai/basepage-tui/basepage.py ---> basepage, rss
 
 ~/.config/local-ai/media-tui/media.py ---> media tui, cliamp
+~/.config/local-ai/media-tui/media.sh ---> media cli, cliamp
 
 # --- Agentic Tools ---
 [TOOL] date ---> time, date
