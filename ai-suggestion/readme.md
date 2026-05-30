@@ -43,7 +43,7 @@ The project is designed to be an infinitely extensible ecosystem of custom tools
 * **`basepage-tui` (RSS & Article Reader Integration):** Launches customized terminal user interfaces, feeds, and articles directly inside your active terminal window.
 * **`ai-summary` (Text & Pipeline Summarizer):** Integrates with custom text, log, and code summarization engines to digest complex documents, fully compatible with the **Koko automated text-to-speech (TTS) read-aloud** feature for hands-free listening.
 
-* `media-tui` (Reactive Media Controller & TUI Suite): Full Python-based TUI with a live, bouncing audio frequency visualizer for dedicated desktop splits, alongside ultra-minimal, reactive inline Bash and Lua versions designed to manage playerctl and wpctl directly inside your command line stream with absolute zero background system overhead.
+* `media-tui` Full Python-based TUI(cliamp) with a live, bouncing audio frequency visualizer for dedicated desktop splits, alongside ultra-minimal, reactive inline Bash and Lua versions designed to manage playerctl and wpctl directly inside your command line stream with absolute zero background system overhead.
 
 > **Extensibility:** You can easily wrap any custom shell script, Python routine, terminal utility, or third-party CLI tool into your context database to build your own personalized system assistant [3].
 
