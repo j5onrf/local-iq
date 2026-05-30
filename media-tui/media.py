@@ -12,6 +12,7 @@ import time
 import math
 import random
 
+# Global state to mimic falling peak decay from vis_bars.go
 NUM_BANDS = 10
 BAND_WIDTH = 6 
 current_heights = [0.0] * NUM_BANDS
@@ -93,6 +94,60 @@ def trigger_robust_toggle(player):
             return
     subprocess.run(["playerctl", f"--player={player}", "play-pause"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+def get_system_volume():
+    """Queries true system master volume using wpctl (preferred for PipeWire) or pactl fallback."""
+    # Method A: Try wpctl (Native PipeWire/WirePlumber)
+    if shutil.which("wpctl"):
+        try:
+            res = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True)
+            if res.returncode == 0:
+                # Format is "Volume: 0.55" or "Volume: 0.55 [MUTED]"
+                val_str = res.stdout.replace("Volume:", "").split()[0]
+                return int(float(val_str) * 100)
+        except Exception:
+            pass
+
+    # Method B: Fallback to pactl if wpctl errors out
+    if shutil.which("pactl"):
+        try:
+            res = subprocess.run(["pactl", "get-sink-volume", "@DEFAULT_SINK@"], capture_output=True, text=True)
+            if res.returncode == 0 and "Volume:" in res.stdout:
+                parts = res.stdout.split()
+                for p in parts:
+                    if "%" in p:
+                        return int(p.replace("%", ""))
+        except Exception:
+            pass
+
+    # Method C: Ultimate player fallback
+    global locked_player
+    if locked_player:
+        try:
+            vol_str = run_pctl_for_player(locked_player, ["volume"])
+            return int(float(vol_str) * 100) if vol_str else 100
+        except Exception:
+            pass
+            
+    return 100
+
+def adjust_system_volume(direction="up"):
+    """Adjusts hardware master slider using native wpctl steps or pactl alternate parsing."""
+    wp_delta = "0.05+" if direction == "up" else "0.05-"
+    pa_delta = "+5%" if direction == "up" else "-5%"  # Swapped sign position to fix pactl literal 5% bug
+
+    if shutil.which("wpctl"):
+        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", wp_delta], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+
+    if shutil.which("pactl"):
+        subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", pa_delta], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+
+    global locked_player
+    if locked_player:
+        pctl_delta = "0.05+" if direction == "up" else "0.05-"
+        subprocess.run(["playerctl", f"--player={locked_player}", "volume", pctl_delta], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 def fmt_time(microseconds_or_seconds, is_micro=False):
     """Converts raw timestamps into clean MM:SS format strings."""
     try:
@@ -124,9 +179,7 @@ def generate_dynamic_cava(is_playing, ticks, style_mode):
         for i in range(num_columns):
             wave = math.sin(t + i * 0.3) * math.cos(t * 0.4) * 3.5
             h_idx = int(max(0, min(len(peak_markers) - 1, 4 + wave)))
-            
             char = peak_markers[h_idx] if h_idx > 1 else "⠂"
-            
             if h_idx > 6:
                 visualizer_line.append(f"\033[38;5;209m{char}\033[0m")
             elif h_idx > 3:
@@ -141,10 +194,8 @@ def generate_dynamic_cava(is_playing, ticks, style_mode):
         for b in range(NUM_BANDS):
             target = random.uniform(1.0, 8.0) if random.random() > 0.15 else random.uniform(0.0, 3.0)
             current_heights[b] += (target - current_heights[b]) * 0.4
-            
             h_idx = int(max(0, min(len(standard_blocks) - 1, current_heights[b])))
             chunk_char = standard_blocks[h_idx]
-            
             colored_chunk = f"\033[32m{chunk_char * BAND_WIDTH}\033[0m"
             if h_idx > 6:
                 colored_chunk = f"\033[38;5;209m{chunk_char * BAND_WIDTH}\033[0m"
@@ -161,7 +212,6 @@ def generate_dynamic_cava(is_playing, ticks, style_mode):
             wave1 = math.sin(t + i * 0.2) * 3.0
             wave2 = math.cos(t * 0.5 - i * 0.1) * 2.0
             h_idx = int(max(0, min(len(dense_blocks) - 1, 4 + wave1 + wave2)))
-            
             if h_idx > 6:
                 visualizer_line.append(f"\033[38;5;209m{dense_blocks[h_idx]}\033[0m")
             elif h_idx > 3:
@@ -178,7 +228,6 @@ def generate_dynamic_cava(is_playing, ticks, style_mode):
             wave1 = math.sin(t + i * 0.25) * 3.5
             wave2 = math.cos(t * 0.6 - i * 0.15) * 2.5
             noise = random.uniform(-0.6, 0.6)
-            
             h_idx = int(max(0, min(len(standard_blocks) - 1, 4 + wave1 + wave2 + noise)))
             if h_idx > 6:
                 visualizer_line.append(f"\033[38;5;209m{standard_blocks[h_idx]}\033[0m")
@@ -220,7 +269,7 @@ def run_media_control():
     ticks = 0
     visualizer_mode = 0  
     
-    title, artist, status, pos_str, len_str, vol_str = "", "", "", "", "", ""
+    title, artist, status, pos_str, len_str = "", "", "", "", ""
     active_player = None
     is_playing = False
 
@@ -241,7 +290,6 @@ def run_media_control():
                     status = run_pctl_for_player(active_player, ["status"])
                     pos_str = run_pctl_for_player(active_player, ["position"])
                     len_str = run_pctl_for_player(active_player, ["metadata", "mpris:length"])
-                    vol_str = run_pctl_for_player(active_player, ["volume"])
                     is_playing = (status == "Playing")
                 else:
                     title = ""
@@ -290,11 +338,9 @@ def run_media_control():
                         pass
                 sys.stdout.write(f"\r {progress_bar}\033[K\r\n\r\n")
 
-                try:
-                    vol_val = float(vol_str) if vol_str else 1.0
-                    vol_pct = int(vol_val * 100)
-                except ValueError:
-                    vol_pct = 100
+                # Fetch real system volume level on every refresh frame
+                vol_pct = get_system_volume()
+                vol_pct = max(0, min(100, vol_pct)) 
                 sys.stdout.write(f"\r \033[1mVOL\033[0m  [\033[32m{'━' * (vol_pct // 10)}{' ' * (10 - (vol_pct // 10))}\033[0m] {vol_pct}%\033[K\r\n")
                 
                 src_display = active_player.split('.')[0][:12]
@@ -325,12 +371,12 @@ def run_media_control():
                     trigger_robust_toggle(active_player)
                 elif key.lower() == 'v':
                     visualizer_mode = (visualizer_mode + 1) % 5
+                elif key == '+' or key == '=':
+                    adjust_system_volume("up")
+                elif key == '-':
+                    adjust_system_volume("down")
                 elif active_player:
-                    if key == '+' or key == '=':
-                        subprocess.run(["playerctl", f"--player={active_player}", "volume", "0.05+"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    elif key == '-':
-                        subprocess.run(["playerctl", f"--player={active_player}", "volume", "0.05-"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    elif key.lower() == 'n' or key == '\033[C':
+                    if key.lower() == 'n' or key == '\033[C':
                         subprocess.run(["playerctl", f"--player={active_player}", "next"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     elif key.lower() == 'p' or key == '\033[D':
                         subprocess.run(["playerctl", f"--player={active_player}", "previous"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

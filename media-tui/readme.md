@@ -1,5 +1,7 @@
 # media.py
 
+<img alt="20260530_142040" src="https://github.com/user-attachments/assets/06c6a8b5-44f5-4267-a5e5-04c44f54b0bc" />
+
 A simple, lightweight Terminal User Interface (TUI) media player controller and responsive audio visualizer built in Python. Inspired by the clean, minimal aesthetic of `cliamp`, it integrates seamlessly with `playerctl` to provide global media management directly inside your shell.
 
 ## Features
@@ -49,3 +51,4 @@ chmod +x media.py
 | `[q]` | Quit Program safely |
 
 ---
+
