@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI Suggestion v0.7.1 [j5onrf] [05-28-26]
+# AI Suggestion v0.7.2 [j5onrf] [05-29-26]
 
 import sys
 import re
@@ -8,6 +8,7 @@ import json
 
 CONTEXT_FILE = os.path.expanduser("~/.config/local-ai/ai-suggestion/ai-context.txt")
 INDEX_FILE = os.path.expanduser("~/.config/local-ai/ai-suggestion/ai-context.idx")
+USAGE_FILE = os.path.expanduser("~/.config/local-ai/ai-suggestion/api-usage.json")
 DESTRUCTIVE_KEYWORDS = ["rm ", "dd ", "mkfs", "shred", "chmod -R 777", "> /dev/sda"]
 
 # Pre-compile regex patterns to save execution time
@@ -114,135 +115,165 @@ def matrix_search(query, threshold=0.50): # Lowered slightly to capture close al
                 
     return "\n".join(top_entries) if top_entries else None
 
-def parse_universal_file(file_path):
-    if not os.path.exists(file_path):
-        return []
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
-    except Exception:
-        return []
+def get_api_config():
+    # Default to local llama-server on localhost:8080
+    url = "http://localhost:8080/v1/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    model = None
 
-    new_mappings = []
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or line.startswith("--"):
-            continue
-        
-        # 1. Parse direct ---> context format (for merging external context files)
-        if "--->" in line and not line.startswith("----->"):
-            cmd_side, intents_side = line.split("--->", 1)
-            new_mappings.append((cmd_side.strip(), intents_side.strip(), True))
-            continue
-
-        # 2. Parse Bash/Zsh Aliases
-        alias_match = re.match(r"^alias\s+(\w+)\s*=\s*(.*)", line)
-        if alias_match:
-            trigger = alias_match.group(1).strip()
-            cmd_part = alias_match.group(2).strip().strip("'\"")
-            new_mappings.append((cmd_part, trigger, False))
-            continue
-
-        # 3. Parse Hyprland Legacy Binds (.conf)
-        if line.startswith("bind") and "exec," in line:
-            try:
-                left_side, cmd_part = line.split("exec,", 1)
-                cmd_part = cmd_part.strip().strip("'\"")
-                parts = [p.strip() for p in left_side.split(",")]
-                trigger_key = ""
-                for p in reversed(parts):
-                    clean_p = p.replace("bind", "").replace("=", "").strip()
-                    if clean_p:
-                        trigger_key = clean_p
-                        break
-                if cmd_part:
-                    new_mappings.append((cmd_part, trigger_key, False))
-            except Exception:
-                pass
-            continue
-
-        # 4. Parse Hyprland 0.55+ Modern Lua Binds (.lua)
-        # e.g., hl.bind("SUPER + SHIFT + Q", hl.dsp.exec_cmd("firefox"))
-        if "hl.bind" in line and "hl.dsp.exec_cmd" in line:
-            try:
-                cmd_match = re.search(r"hl\.dsp\.exec_cmd\(\s*\[*['\"]*(.*?)['\"]*\]*\s*\)", line)
-                key_match = re.search(r"hl\.bind\(\s*\[*['\"]*(.*?)['\"]*\]*\s*,", line)
-                if cmd_match and key_match:
-                    cmd_part = cmd_match.group(1).strip().strip("'\"")
-                    trigger_key = key_match.group(1).strip().strip("'\"")
-                    # Clean up Lua variable concatenations (e.g., mainMod .. " + F" -> SUPER + F)
-                    trigger_key = trigger_key.replace("mainMod ..", "SUPER").replace("mainMod", "SUPER")
-                    trigger_key = trigger_key.replace("..", "+").replace("\"", "").replace("'", "").strip()
-                    trigger_key = re.sub(r"\s+", " ", trigger_key)
-                    if cmd_part:
-                        new_mappings.append((cmd_part, trigger_key, False))
-            except Exception:
-                pass
-            continue
-
-        # 5. Parse Neovim Lua Keymaps
-        if "keymap.set" in line or "api.nvim_set_keymap" in line:
-            try:
-                quoted_strings = re.findall(r"['\"](.*?)['\"]", line)
-                if len(quoted_strings) >= 3:
-                    trigger = quoted_strings[1]
-                    cmd_part = quoted_strings[2]
-                    if trigger and cmd_part and not cmd_part.startswith(":") and not cmd_part.startswith("<"):
-                        new_mappings.append((cmd_part, trigger, False))
-                    elif cmd_part.startswith(":"):
-                        new_mappings.append((f"nvim {cmd_part}", trigger, False))
-            except Exception:
-                pass
-            continue
-
-        # 6. Parse WezTerm / Lua config binds
-        if "SpawnCommand" in line and "args" in line:
-            try:
-                key_match = re.search(r"key\s*=\s*['\"](.*?)['\"]", line)
-                args_match = re.search(r"args\s*=\s*\{\s*['\"](.*?)['\"]", line)
-                if key_match and args_match:
-                    trigger = key_match.group(1).strip()
-                    cmd_part = args_match.group(1).strip()
-                    new_mappings.append((cmd_part, trigger, False))
-            except Exception:
-                pass
-            continue
-            
-    return new_mappings
-
-def generate_intents_for_cmd(cmd, trigger):
-    # Safe fallback if LLM is offline
-    default_intents = f"launch {trigger}, run {cmd.split()[0]} via {trigger}" if trigger else f"run {cmd.split()[0]}"
-    import requests
-    try:
-        prompt = f"Generate 3 natural language intents (phrases) a user would type into a terminal to trigger this command: '{cmd}'. Output ONLY the phrases separated by commas. No explanations, no numbering, no formatting."
-        payload = {
-            "messages": [
-                {"role": "system", "content": "You are a strict terminal command to intent translator. Output only comma-separated phrases."},
-                {"role": "user", "content": prompt}
-            ],
-            "stream": False
+    # Check if Google Gemini API is configured
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        # Corrected: Swapped back to Google's official direct REST completions URL
+        url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {gemini_key}"
         }
-        response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, timeout=4)
-        if response.status_code == 200:
-            ans = response.json()["choices"][0]["message"]["content"].strip()
-            ans = re.sub(r"^\d+\.\s*", "", ans)
-            if ans and len(ans) < 150:
-                return f"{ans}, {default_intents}"
+        # Default to stable Gemini Flash, but allow custom models via environment variables
+        model = os.environ.get("CLOUD_MODEL", "gemini-1.5-flash")
+        return url, headers, model
+
+    # Check for generic OpenAI-compatible cloud provider (e.g. OpenRouter, Groq, Together)
+    cloud_key = os.environ.get("CLOUD_API_KEY")
+    cloud_url = os.environ.get("CLOUD_API_URL")
+    if cloud_key and cloud_url:
+        url = cloud_url
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cloud_key}"
+        }
+        model = os.environ.get("CLOUD_MODEL")
+        return url, headers, model
+
+    return url, headers, model
+
+def log_usage(model_name, prompt_tokens, completion_tokens, total_tokens):
+    try:
+        os.makedirs(os.path.dirname(USAGE_FILE), exist_ok=True)
+        data = {}
+        if os.path.exists(USAGE_FILE):
+            with open(USAGE_FILE, "r") as f:
+                data = json.load(f)
+        
+        # Capture current transaction details
+        data["last_model"] = model_name or "local"
+        data["last_prompt_tokens"] = prompt_tokens
+        data["last_completion_tokens"] = completion_tokens
+        data["last_total_tokens"] = total_tokens
+        
+        # Accumulate cumulative stats
+        data["total_prompt_tokens"] = data.get("total_prompt_tokens", 0) + prompt_tokens
+        data["total_completion_tokens"] = data.get("total_completion_tokens", 0) + completion_tokens
+        data["total_total_tokens"] = data.get("total_total_tokens", 0) + total_tokens
+        data["total_calls"] = data.get("total_calls", 0) + 1
+        
+        with open(USAGE_FILE, "w") as f:
+            json.dump(data, f)
     except Exception:
         pass
-    return default_intents
+
+def print_usage_on_demand():
+    if not os.path.exists(USAGE_FILE):
+        print("\033[1;31mError: No API usage data found yet. Run an AI command first.\033[0m")
+        sys.exit(1)
+    try:
+        with open(USAGE_FILE, "r") as f:
+            data = json.load(f)
+        model = data.get("last_model", "unknown")
+        p_tok = data.get("last_prompt_tokens", 0)
+        c_tok = data.get("last_completion_tokens", 0)
+        t_tok = data.get("last_total_tokens", 0)
+        print(f"\033[1;30m[Model: {model} | Prompt: {p_tok}t | Gen: {c_tok}t | Total: {t_tok}t]\033[0m")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error reading usage: {str(e)}")
+        sys.exit(1)
 
 # ==============================================================================
 # ROUTING & EXECUTION
 # ==============================================================================
 
-# Manual Compile mode
-if len(sys.argv) > 1 and sys.argv[1] == "--compile":
-    if compile_vector_index():
-        print("✓ Speed matrix index compiled successfully.")
-        sys.exit(0)
-    sys.exit(1)
+# On-Demand Token Usage monitor
+if len(sys.argv) > 1 and sys.argv[1] == "--usage":
+    print_usage_on_demand()
+
+# Manual Status Dashboard Monitor
+if len(sys.argv) > 1 and sys.argv[1] == "--status":
+    url, headers, model = get_api_config()
+    is_cloud = "googleapis" in url
+    
+    # Count mapped entries and tools cleanly
+    mappings_count = 0
+    tools_count = 0
+    if os.path.exists(CONTEXT_FILE):
+        try:
+            with open(CONTEXT_FILE, "r") as f:
+                lines = f.read().splitlines()
+            for line in lines:
+                if "--->" in line and not line.startswith("#"):
+                    mappings_count += 1
+                    if line.strip().startswith("[TOOL]"):
+                        tools_count += 1
+        except Exception:
+            pass
+
+    # Print a beautiful, high-contrast, compact ASCII dashboard card
+    print("\033[1;36m┌──────────────────────────────────────────────────────────┐\033[0m")
+    print("\033[1;36m│          AI-SUGGESTION SYSTEM MONITOR & DASHBOARD        │\033[0m")
+    print("\033[1;36m├──────────────────────────────────────────────────────────┤\033[0m")
+    
+    # Active Connection Mode
+    if is_cloud:
+        print(f"\033[1;36m│\033[0m  Active Mode:     \033[1;32mGoogle Gemini Cloud API\033[0m                \033[1;36m│\033[0m")
+        key_show = os.environ.get("GEMINI_API_KEY", "")[:8] + "..."
+        print(f"\033[1;36m│\033[0m  API Key:         \033[1;30mLoaded ({key_show})\033[0m                      \033[1;36m│\033[0m")
+        print(f"\033[1;36m│\033[0m  Cloud Model:     \033[1;35m{model or 'gemini-1.5-flash'}\033[0m                 \033[1;36m│\033[0m")
+        
+        # Robust default-to-true parsing for Search Grounding
+        grounding_env = os.environ.get("GEMINI_GROUNDING", "true").lower()
+        grounding_active = grounding_env != "false"
+        code_exec_active = os.environ.get("GEMINI_CODE_EXEC", "false").lower() == "true"
+        
+        # Tools Status strings
+        gr_status = "\033[1;32mGoogle Search\033[0m" if grounding_active else "\033[1;30mNone\033[0m"
+        if code_exec_active:
+            if grounding_active:
+                gr_status += " \033[1;30m+\033[0m \033[1;32mPython Code-Exec\033[0m"
+            else:
+                gr_status = "\033[1;32mPython Code-Exec\033[0m"
+            
+        print(f"\033[1;36m│\033[0m  Active Tools:    {gr_status:<49}\033[1;36m│\033[0m")
+    else:
+        print(f"\033[1;36m│\033[0m  Active Mode:     \033[1;34mLocal Llama Server\033[0m                     \033[1;36m│\033[0m")
+        print(f"\033[1;36m│\033[0m  Connection Port: \033[1;30mhttp://localhost:8080\033[0m                   \033[1;36m│\033[0m")
+        
+    print("\033[1;36m├──────────────────────────────────────────────────────────┤\033[0m")
+    
+    # Local Index Metrics
+    print(f"\033[1;36m│\033[0m  Context Database: \033[1;30m{CONTEXT_FILE.replace(os.path.expanduser('~'), '~')}\033[0m    \033[1;36m│\033[0m")
+    print(f"\033[1;36m│\033[0m  Mapped Shortcuts: \033[1;33m{mappings_count:<5}\033[0m                                 \033[1;36m│\033[0m")
+    print(f"\033[1;36m│\033[0m  Active [TOOL]s:   \033[1;33m{tools_count:<5}\033[0m                                 \033[1;36m│\033[0m")
+    
+    # Check if index exists
+    idx_exists = "\033[1;32mActive & Synced\033[0m" if os.path.exists(INDEX_FILE) else "\033[1;31mMissing\033[0m"
+    print(f"\033[1;36m│\033[0m  Search Index:    {idx_exists:<49}\033[1;36m│\033[0m")
+    
+    # Cumulative API usage stats (if file exists)
+    if os.path.exists(USAGE_FILE):
+        try:
+            with open(USAGE_FILE, "r") as f:
+                u_data = json.load(f)
+            print("\033[1;36m├──────────────────────────────────────────────────────────┤\033[0m")
+            last_msg = f"{u_data.get('last_model', 'local')} ({u_data.get('last_total_tokens', 0)}t total)"
+            print(f"\033[1;36m│\033[0m  Last Request:    \033[1;30m{last_msg:<41}\033[0m\033[1;36m│\033[0m")
+            print(f"\033[1;36m│\033[0m  Lifetime Calls:  \033[1;30m{u_data.get('total_calls', 0):<41}\033[0m\033[1;36m│\033[0m")
+            print(f"\033[1;36m│\033[0m  Lifetime Tokens: \033[1;30m{u_data.get('total_total_tokens', 0):<41}\033[0m\033[1;36m│\033[0m")
+        except Exception:
+            pass
+            
+    print("\033[1;36m└──────────────────────────────────────────────────────────┘\033[0m")
+    sys.exit(0)
 
 # Map bindings and aliases configuration mode (Universal Parser)
 if len(sys.argv) > 1 and sys.argv[1] == "--map":
@@ -306,6 +337,8 @@ if len(sys.argv) > 1 and (sys.argv[1] == "--teach" or sys.argv[1] == "--learn"):
 if len(sys.argv) > 1 and sys.argv[1] == "--talk":
     # Lazy-load requests library only when active network chat is needed
     import requests
+    url, headers, model = get_api_config()
+    
     if len(sys.argv) > 2:
         query = " ".join(sys.argv[2:])
         
@@ -321,28 +354,76 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                     # Lazy-load subprocess only when executing a local tool
                     import subprocess
                     try:
-                        output = subprocess.check_output(tool_cmd, shell=True, text=True, timeout=2).strip()
+                        # Increased timeout safety from 8s to 15s to support slow package/mirror syncs
+                        output = subprocess.check_output(tool_cmd, shell=True, text=True, timeout=15).strip()
                         # Clean confirmation for silent GUI tools
                         if not output:
                             output = "Action executed successfully."
-                        system_context = f"The output of the local system tool '{tool_cmd}' is:\n{output}\n"
+                        # Inject raw output only - no path or filename leaks to prevent LLM confusion
+                        system_context = f"{output}\n"
                     except Exception as e:
-                        system_context = f"Failed to run local tool '{tool_cmd}': {str(e)}\n"
+                        # Print explicit red warning directly to terminal stderr if tool crashes or times out (no "DEBUG" prefix)
+                        print(f"\033[1;31mTool execution failed: {str(e)}\033[0m", file=sys.stderr)
+                        system_context = f"[SYSTEM ERROR] Failed to run local tool: {str(e)}\n"
 
         # 2. Compile conversational assistant system prompt
-        system_prompt = "You are a helpful, conversational local AI shell assistant. Answer the user's questions clearly, concisely, and directly."
+        system_prompt = (
+            "You are a helpful, conversational local AI shell assistant with read-only "
+            "terminal access. Use the provided real-time system context to answer "
+            "the user's questions clearly, concisely, and directly. Do not state "
+            "that you cannot access their machine, as the required data has "
+            "already been successfully fetched and provided to you."
+        )
         if system_context:
-            system_prompt += f"\n\n# Real-time System Context\nUse the following real-time data to answer the user's request:\n{system_context}"
+            system_prompt += (
+                f"\n\n# Real-time System Context\n"
+                f"Use the following real-time data to answer the user's request:\n"
+                f"{system_context}"
+            )
 
         try:
+            # Build model-agnostic unified user prompt (RAG standard)
+            unified_prompt = ""
+            if system_context:
+                unified_prompt += (
+                    f"[REAL-TIME SYSTEM CONTEXT]\n"
+                    f"You have read-only terminal access. The required system data has "
+                    f"already been successfully fetched and is provided below:\n{system_context}\n"
+                    f"Do not state that you cannot access their system, as the data has "
+                    f"already been successfully provided to you.\n\n"
+                )
+            unified_prompt += f"User Question: {query}"
+
             payload = {
                 "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
+                    {"role": "user", "content": unified_prompt}
                 ],
-                "stream": True
+                "stream": True,
+                # Enables full stream token tracking natively inside Google's completions [1]
+                "stream_options": {"include_usage": True}
             }
-            response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
+            if model:
+                payload["model"] = model
+                # If Google cloud-mode is active and grounding is enabled, append the tool!
+                if "generativelanguage" in url:
+                    tools_list = []
+                    
+                    # Robust default-to-true parsing for Search Grounding
+                    grounding_env = os.environ.get("GEMINI_GROUNDING", "true").lower()
+                    grounding_active = grounding_env != "false"
+                    code_exec_active = os.environ.get("GEMINI_CODE_EXEC", "false").lower() == "true"
+                    
+                    if grounding_active:
+                        tools_list.append({"google_search": {}})
+                    if code_exec_active:
+                        tools_list.append({"code_execution": {}})
+                    if tools_list:
+                        payload["tools"] = tools_list
+                
+            response = requests.post(url, json=payload, headers=headers, stream=True)
+            # Raise an HTTPError if Google returns an API failure (like 401 Unauthorized) [1]
+            response.raise_for_status()
+            
             first_chunk = True
             for chunk in response.iter_lines():
                 if not chunk:
@@ -352,17 +433,33 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                     break
                 try:
                     data = json.loads(decoded)
-                    content = data["choices"][0]["delta"].get("content", "")
-                    if content:
-                        if first_chunk:
-                            print("\033[1;32mAI: \033[0m", end="", flush=True)
-                            first_chunk = False
-                        print(content, end="", flush=True)
+                    
+                    # 1. Parse standard streaming text completions
+                    if "choices" in data and len(data["choices"]) > 0:
+                        content = data["choices"][0]["delta"].get("content", "")
+                        if content:
+                            if first_chunk:
+                                print("\033[1;32mAI: \033[0m", end="", flush=True)
+                                first_chunk = False
+                            print(content, end="", flush=True)
+                            
+                    # 2. Parse final stream usage chunk silently for local caching [1, 2]
+                    if "usage" in data and data["usage"]:
+                        usage = data["usage"]
+                        p_tok = usage.get("prompt_tokens", 0)
+                        c_tok = usage.get("completion_tokens", 0)
+                        t_tok = usage.get("total_tokens", 0)
+                        # Silent local cache logging (no screen clutter!)
+                        log_usage(model, p_tok, c_tok, t_tok)
                 except Exception:
                     pass
             print()
-        except requests.exceptions.RequestException:
-            print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m")
+        except requests.exceptions.RequestException as e:
+            # Dynamic Error feedback: check if in cloud vs local mode
+            if os.environ.get("GEMINI_API_KEY") or os.environ.get("CLOUD_API_KEY"):
+                print(f"\033[1;31mError: Cloud AI API request failed: {str(e)}\033[0m")
+            else:
+                print("\033[1;31mError: Local AI server is offline. Please start your server.\033[0m")
         except KeyboardInterrupt:
             print("\n\033[1;33mInterrupted.\033[0m")
         sys.exit(0)
@@ -377,37 +474,81 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                 # 1. Run a local matrix check inside the interactive chat loop
                 system_context = ""
                 tool_match = matrix_search(query)
-                if tool_match:
-                    first_match = tool_match.split("\n")[0]
-                    if "|||" in first_match:
-                        intent, cmd = first_match.split("|||", 1)
-                        if cmd.startswith("[TOOL]"):
-                            tool_cmd = cmd.replace("[TOOL]", "").strip()
-                            # Lazy-load subprocess only when executing a local tool
-                            import subprocess
-                            try:
-                                output = subprocess.check_output(tool_cmd, shell=True, text=True, timeout=2).strip()
-                                # Clean confirmation for silent GUI tools
-                                if not output:
-                                    output = "Action executed successfully."
-                                system_context = f"The output of the local system tool '{tool_cmd}' is:\n{output}\n"
-                            except Exception as e:
-                                system_context = f"Failed to run local tool '{tool_cmd}': {str(e)}\n"
+                if tool_match and tool_match.startswith("[TOOL]"):
+                    tool_cmd = tool_match.replace("[TOOL]", "").strip()
+                    # Lazy-load subprocess only when executing a local tool
+                    import subprocess
+                    try:
+                        # Increased timeout safety from 8s to 15s to support slow package/mirror syncs
+                        output = subprocess.check_output(tool_cmd, shell=True, text=True, timeout=15).strip()
+                        # Clean confirmation for silent GUI tools
+                        if not output:
+                            output = "Action executed successfully."
+                        # Inject raw output only - no path or filename leaks to prevent LLM confusion
+                        system_context = f"{output}\n"
+                    except Exception as e:
+                        # Print explicit red warning directly to terminal stderr if tool crashes or times out (no "DEBUG" prefix)
+                        print(f"\033[1;31mTool execution failed: {str(e)}\033[0m", file=sys.stderr)
+                        system_context = f"[SYSTEM ERROR] Failed to run local tool: {str(e)}\n"
 
                 # 2. Compile conversational assistant system prompt
-                system_prompt = "You are a helpful, conversational local AI shell assistant. Answer the user's questions clearly, concisely, and directly."
+                system_prompt = (
+                    "You are a helpful, conversational local AI shell assistant with read-only "
+                    "terminal access. Use the provided real-time system context to answer "
+                    "the user's questions clearly, concisely, and directly. Do not state "
+                    "that you cannot access their machine, as the required data has "
+                    "already been successfully fetched and provided to you."
+                )
                 if system_context:
-                    system_prompt += f"\n\n# Real-time System Context\nUse the following real-time data to answer the user's request:\n{system_context}"
+                    system_prompt += (
+                        f"\n\n# Real-time System Context\n"
+                        f"Use the following real-time data to answer the user's request:\n"
+                        f"{system_context}"
+                    )
+
+                # Build model-agnostic unified user prompt (RAG standard)
+                unified_prompt = ""
+                if system_context:
+                    unified_prompt += (
+                        f"[REAL-TIME SYSTEM CONTEXT]\n"
+                        f"You have read-only terminal access. The required system data has "
+                        f"already been successfully fetched and is provided below:\n{system_context}\n"
+                        f"Do not state that you cannot access their system, as the data has "
+                        f"already been successfully provided to you.\n\n"
+                    )
+                unified_prompt += f"User Question: {query}"
 
                 payload = {
                     "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": query}
+                        {"role": "user", "content": unified_prompt}
                     ],
-                    "stream": True
+                    "stream": True,
+                    # Enables full stream token tracking natively inside Google's completions [1]
+                    "stream_options": {"include_usage": True}
                 }
+                if model:
+                    payload["model"] = model
+                    # If Google cloud-mode is active and grounding is enabled, append the tool!
+                    if "generativelanguage" in url:
+                        tools_list = []
+                        
+                        # Robust default-to-true parsing for Search Grounding
+                        grounding_env = os.environ.get("GEMINI_GROUNDING", "true").lower()
+                        grounding_active = grounding_env != "false"
+                        code_exec_active = os.environ.get("GEMINI_CODE_EXEC", "false").lower() == "true"
+                        
+                        if grounding_active:
+                            tools_list.append({"google_search": {}})
+                        if code_exec_active:
+                            tools_list.append({"code_execution": {}})
+                        if tools_list:
+                            payload["tools"] = tools_list
+                    
                 try:
-                    response = requests.post("http://localhost:8080/v1/chat/completions", json=payload, stream=True)
+                    response = requests.post(url, json=payload, headers=headers, stream=True)
+                    # Raise an HTTPError if Google returns an API failure (like 401 Unauthorized) [1]
+                    response.raise_for_status()
+                    
                     first_chunk = True
                     for chunk in response.iter_lines():
                         if not chunk:
@@ -417,12 +558,24 @@ if len(sys.argv) > 1 and sys.argv[1] == "--talk":
                             break
                         try:
                             data = json.loads(decoded)
-                            content = data["choices"][0]["delta"].get("content", "")
-                            if content:
-                                if first_chunk:
-                                    print("\033[1;32mAI: \033[0m", end="", flush=True)
-                                    first_chunk = False
-                                print(content, end="", flush=True)
+                            
+                            # 1. Parse standard streaming text completions
+                            if "choices" in data and len(data["choices"]) > 0:
+                                content = data["choices"][0]["delta"].get("content", "")
+                                if content:
+                                    if first_chunk:
+                                        print("\033[1;32mAI: \033[0m", end="", flush=True)
+                                        first_chunk = False
+                                    print(content, end="", flush=True)
+                                    
+                            # 2. Parse final stream usage chunk silently for local caching [1, 2]
+                            if "usage" in data["usage"]:
+                                usage = data["usage"]
+                                p_tok = usage.get("prompt_tokens", 0)
+                                c_tok = usage.get("completion_tokens", 0)
+                                t_tok = usage.get("total_tokens", 0)
+                                # Silent local cache logging (no screen clutter!)
+                                log_usage(model, p_tok, c_tok, t_tok)
                         except Exception:
                             pass
                     print("\n")
@@ -453,5 +606,5 @@ if matched_base:
     print("\n".join(out_lines))
     sys.exit(0)
 else:
-    print("Command Not Found") # <--- FIXED THIS TYPO HERE!
+    print("Command Not Found")
     sys.exit(1)

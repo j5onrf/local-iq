@@ -1,31 +1,49 @@
-# AI-Suggestion Agent (v0.7.1-alpha)
+# AI-Suggestion Agent (v0.7.3-alpha)
 
 <img alt="20260528_175036" src="https://github.com/user-attachments/assets/7f90513b-0b29-41e2-8471-055a00e8371c" />
 
-`Qwen3.5-2B-UD-Q4_K_XL+` `Python 3.10+` `Bash 4.0+` `Zsh 5.0+` `OpenAI-compatible`
+`Qwen3.6-35B-A3B` `Gemini-3.1-Flash-Lite` `Python 3.10+` `Bash 4.0+` `OpenAI-Compatible API`
 
-> ⚠️ **Alpha Release Notice:** This project is currently in active **Alpha** development and is subject to rapid, drastic architectural changes. Our core design goals are to maintain an extremely lightweight, minimal shell footprint while empowering your command line with high-performance local AI tool workflows.
-
-An adaptive, local AI shell agent designed to conform completely to your workflow. By analyzing your terminal environment and learning your custom aliases, it intercepts command typos, syntax errors, or forgotten flags to seamlessly suggest the exact command you meant to run.
+> ⚠️ **Alpha Release Notice:** This project is currently in active **Alpha** development and is subject to rapid, drastic changes. Our core design goals are to maintain an extremely lightweight, minimal shell footprint while empowering your command line with high-performance local/cloud AI tool workflows.
 
 ---
 
-## Key Highlights & Features
+## Introduction
 
-* **Zero-Overhead, On-Demand Architecture:** Strictly **0% idle memory and CPU footprint**. The agent runs synchronously only for the millisecond you press `Enter` on a typo—no background pollers, timers, or daemons.
-* **Sub-2ms Local Token Matching:** C-compiled Sørensen-Dice matrix set-intersections match jumbled or rephrased typos instantly, completely bypassing the local LLM.
-* **Real-Time Context Injection (RAG):** Map standard terminal utilities or custom scripts as `[TOOL]` commands [3]. Your local LLM dynamically executes them, reads their raw outputs, and answers conversational system questions in **one single pass** [2].
-* **Universal Configuration Mapper:** A single command (`ai --map`) to ingest `.bashrc`, `.zshrc`, `hyprland.conf`, `.lua` keybinds, or custom configurations, automatically generating semantic intents via your local LLM [3].
-* **Interactive Suggestion Carousel:** If multiple local commands match a typo, cycle through your top 3 matches cleanly using your **Up** and **Down** arrow keys with high-contrast visual intent cues.
-* **Bulletproof Offline Resilience:** If your local AI server is offline, your typo suggestions, custom aliases, and interactive teaching loops continue to work perfectly offline. Only conversational chat requests are blocked.
+The **AI-Suggestion Agent** is an on-demand, local shell companion designed to conform to your keyboard habits with zero system overhead. It runs entirely on-demand, consuming **0% idle memory and 0% idle CPU** when your terminal is sitting idle [1]. 
+
+When you type a command typo or unrecognized phrase, a high-speed C-compiled local token matrix corrects your input in under 2ms [1]. When you run conversational questions (using the `ai` prefix), the agent securely invokes your designated system tools, reads their terminal outputs, and streams context-aware answers using a local or cloud-based LLM (like Google Gemini) in a single inference pass [1, 2].
 
 ---
 
-## Prerequisites & Requirements
+## Core Features
 
-* **Local LLM Server** providing an **OpenAI-compatible Chat Completions API** (e.g., `llama-server` [3], Ollama [2], LM Studio, or LocalAI [3]) running on `http://localhost:8080` (or your configured port [1]).
-* **Python 3.10+**
-* **Bash 4.0+** or **Zsh 5.0+**
+* **Zero-Background Footprint:** No background processes, timers, or daemons. Sourced synchronously only for the millisecond you execute a typo or query.
+* **Instant Typo Correction (Local):** Local set-matrix calculations match and correct command typos locally, completely bypassing the LLM.
+* **Active System Tools (RAG):** Map standard CLI commands or custom scripts as `[TOOL]` configurations [3]. Your LLM dynamically executes them, reads their raw outputs, and answers conversational system questions in a single pass [2].
+* **Hybrid Local/Cloud Brains:** Runs privately on your local `llama-server`, or routes instantly to **Google Gemini** for rapid cloud execution with **0% local RAM/CPU overhead** [1, 2].
+* **On-Demand Toggles:** Sourced directly in your active shell. Toggle Google Search Grounding (`ai --grounding [on|off]`) or Python Code Execution (`ai --code-exec [on|off]`) in real-time [3].
+* **CLI System Monitor Dashboard:** Run `ai --status` or `ai --usage` to view real-time API transactions, prompt token costs, and local index metrics in a compact terminal card.
+
+---
+
+## Packaged Tools & TUI Integrations (`[TOOL]`)
+
+The project is designed to be an infinitely extensible ecosystem of custom tools and Terminal User Interface (TUI) integrations. Included out-of-the-box and as template examples are:
+
+### A. System Diagnostics & Management
+* **`ai-system-diagnosis` (Real-Time System Doctor):** Inspects live CPU load, active memory metrics, disk space, and failed systemd units as simple key-value outputs, completely preventing model math hallucinations [4].
+* **`update-inspector` (Pending Upgrades Analyzer):** Safely parses pending repository and AUR updates in memory, allowing your LLM to warn you about critical library dependencies or package keyring overrides before running upgrades [1.1.3].
+* **`kill-ai-servers` (Resource Release Utility):** Instantly terminates background local AI inference servers to release system RAM back to your operating system on demand [1.1.3].
+
+### B. Workspace Awareness & Desktop Control
+* **`hyprstate` (Compositor & Window Monitor):** Inspects active windows, current workspaces, and session statistics, giving your conversational AI "eyes" on your graphical desktop environment [1.1.2].
+
+### C. TUI & Utility Integrations
+* **`basepage-tui` (RSS & Article Reader Integration):** Launches customized terminal user interfaces, feeds, and articles directly inside your active terminal window.
+* **`ai-summary` (Text & Pipeline Summarizer):** Integrates with custom text and code summarization engines to digest complex documents, pipeline logs, or data structures on demand.
+
+> **Extensibility:** You can easily wrap any custom shell script, Python routine, terminal utility, or third-party CLI tool into your context database to build your own personalized system assistant [3].
 
 ---
 
@@ -57,15 +75,20 @@ An adaptive, local AI shell agent designed to conform completely to your workflo
    Cmd    Auto-Compile                     Auto-Compile
 ```
 
-### B. The Conversational Agent (On-Demand / Real-Time RAG)
+### B. The Conversational Agent (On-Demand / Hybrid Local-Cloud)
 
 ```text
                          [ ai <conversational query> ]
                                       │
                                       ▼
-                        [ 0ms TCP Handshake Check ] ──(Offline)──► [Exit 127]
-                                      │ (Online)
-                                      ▼
+                   [ Cloud Mode Active? (Env Key check) ]
+                                 /      \
+                        (No Key)/        \(API Key Sourced)
+                               /          \
+            [ 0ms TCP Handshake Check ]    [ Standard Cloud Routing ]
+             Port 8080 offline -> Exit      Bypasses local port checks
+                               \          /
+                                ▼        ▼
                            [ Tool-Intent Match? ]
                                       │
                      ┌────────────────┴────────────────┐
@@ -79,8 +102,8 @@ An adaptive, local AI shell agent designed to conform completely to your workflo
                      └────────────────┬────────────────┘
                                       │
                                       ▼
-                         [ Local Conversational LLM ]
-                         (Streams Response to Shell)
+                        [ Local/Cloud OpenAI-API ]
+                        (Streams Response to Shell)
 ```
 
 ---
@@ -116,18 +139,14 @@ cat << 'EOF' >> ~/.bashrc
 EOF
 ```
 
-### 3. Ingest Your Configurations (`--map`)(Optional)
-
-Use the high-speed Universal Configuration Mapper to automatically parse your system shortcuts and generate semantic intents via your local LLM [2, 3]:
-
-**A. Map your terminal aliases:**
+Reload your shell:
 ```bash
-ai --map ~/.bashrc
+source ~/.bashrc
 ```
 
-**B. Map your desktop window manager keybinds:**
+*(Optional Cloud setup)*: Export your Gemini API key in your `.bashrc` to activate cloud routing instantly [1, 2]:
 ```bash
-ai --map ~/.config/hypr/bindings.conf
+export GEMINI_API_KEY="AIzaSyYourGeminiKey"
 ```
 
 ---

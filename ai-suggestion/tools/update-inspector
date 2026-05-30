@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# AI Update Inspector v0.7.3
+# High-speed, non-interactive package stream formatting for LLM context injection.
+
+set -euo pipefail
+
+echo "=== PENDING SYSTEM UPGRADES ==="
+echo "[INSTRUCTIONS FOR AI]:"
+echo "1. Focus entirely on analyzing the specific packages in the provided update list."
+echo "2. Identify and highlight the CRITICAL updates (like systemd, kernel, audio drivers, keyrings) and clearly explain how these specific updates affect their active system, security, or running processes."
+echo "3. DO NOT explain how to run the update commands (the user already knows how to update)."
+echo "--------------------------------"
+
+# 1. Native Repository Updates (Run checkupdates EXACTLY once)
+if command -v checkupdates >/dev/null 2>&1; then
+    # Capture raw output in memory. Allow exit code 1 (no updates) safely [2]
+    raw_repo_updates=$(checkupdates 2>/dev/null || true)
+
+    if [ -n "$raw_repo_updates" ]; then
+        # Count lines of the raw string in memory
+        repo_count=$(echo "$raw_repo_updates" | wc -l)
+        # Parse package names and join with commas
+        repo_packages=$(echo "$raw_repo_updates" | awk '{print $1}' | awk '{printf "%s%s", (NR==1?"":", "), $0} END {print ""}')
+        echo "[PENDING_REPOS] Count: $repo_count | Packages: $repo_packages"
+    else
+        echo "[PENDING_REPOS] Count: 0 | Packages: None"
+    fi
+else
+    echo "[PENDING_REPOS] Error: checkupdates missing"
+fi
+
+# 2. AUR Updates (Run helper -Qua EXACTLY once)
+aur_helper=""
+if command -v paru >/dev/null 2>&1; then
+    aur_helper="paru"
+elif command -v yay >/dev/null 2>&1; then
+    aur_helper="yay"
+fi
+
+if [ -n "$aur_helper" ]; then
+    # -Qua pulls strictly from local sync cache; guaranteed 0ms timeout / no password prompt
+    # Capture raw output in memory. Allow exit code 1 safely [2]
+    raw_aur_updates=$($aur_helper -Qua 2>/dev/null || true)
+
+    if [ -n "$raw_aur_updates" ]; then
+        # Count lines of the raw string in memory
+        aur_count=$(echo "$raw_aur_updates" | wc -l)
+        # Parse package names and join with commas
+        aur_packages=$(echo "$raw_aur_updates" | awk '{print $1}' | awk '{printf "%s%s", (NR==1?"":", "), $0} END {print ""}')
+        echo "[PENDING_AUR] Count: $aur_count | Packages: $aur_packages"
+    else
+        echo "[PENDING_AUR] Count: 0 | Packages: None"
+    fi
+else
+    echo "[PENDING_AUR] Count: 0 | Packages: None"
+fi

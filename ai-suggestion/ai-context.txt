@@ -10,18 +10,19 @@ Rules:
 # COMMAND MAPPING INDEX (Format: [cmd] ---> [intents])
 # ==============================================================================
 
-# --- AUTO-BOOTSTRAP IMPORTED ALIASES ---
-clear ---> cc, clear screen, remove foreground text, reset terminal display
-
+# --- ALIASES ---
+clear ---> cc, clear screen
 btop ---> check system memory usage status
 
+# --- Apps ---
 omarchy-launch-webapp https://music.youtube.com/ ---> youtube music
 uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bunker" --app=https://open.spotify.com/ >/dev/null 2>&1
 
 uwsm app -- brave-origin-beta --user-data-dir="/home/j5/.config/brave-spotify-bunker" --app=https://open.spotify.com/ >/dev/null 2>&1 ---> spotify music, spotify
 
-basepage ---> /home/j5/.config/local-ai/ai-basepage/ai-basepage.py
-get updates ---> /home/j5/.config/local-ai/ai-basepage/ai-basepage.py
+~/.config/local-ai/basepage-tui/basepage.py ---> basepage, rss
+
+~/.config/local-ai/media-tui/media.py ---> media tui, cliamp
 
 # --- Agentic Tools ---
 [TOOL] date ---> time, date
@@ -55,3 +56,5 @@ cd ~/Documents ---> go to documents, cd documents, open documents
 # 2. Active AI Tool: Ask the AI conversationally to pop open your graphical file manager
 [TOOL] xdg-open ~/Documents ---> open my documents folder, show my documents, launch documents folder
 
+# --- System Update Inspector ---
+[TOOL] /home/j5/.config/local-ai/ai-suggestion/tools/update-inspector ---> update inspector, check for system updates, are there any important upgrades, look at pending packages, explain my updates, what is updating, do I need to update today

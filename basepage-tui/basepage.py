@@ -31,7 +31,6 @@ REDLIB_INSTANCE = "auto"
 FEEDS = {
     "r/hyprland": {"type": "reddit", "subreddit": "hyprland"},
     "r/unixporn": {"type": "reddit", "subreddit": "unixporn"},
-    "Arch Linux News": {"type": "custom", "url": "https://archlinux.org/feeds/news/"},
     "Hacker News": {"type": "custom", "url": "https://news.ycombinator.com/rss"}
 }
 
@@ -180,7 +179,7 @@ def print_header(subtitle=""):
     c = [f"\033[3{i}m" for i in range(1, 6)]
     reset = "\033[0m"
     print(f"         {c[0]}╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮{reset}")
-    print(f"         {c[1]}│   󰚌  BASEPAGE DASHBOARD   │{reset}")
+    print(f"         {c[1]}│   󰚌  BASEPAGE DASHBOARD    │{reset}")
     print(f"         {c[2]}╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯{reset}")
     if subtitle:
         print(f"               \033[1;35m// {subtitle}\033[0m\n")
@@ -197,13 +196,13 @@ def fetch_feed_instant(target_key):
     if feed_config["type"] == "reddit":
         subreddit = feed_config["subreddit"]
         if sort_mode == "hot":
-            url = f"https://www.reddit.com/r/{subreddit}/hot/.rss?limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/hot/.rss?limit=30"
         elif sort_mode == "top_day":
-            url = f"https://www.reddit.com/r/{subreddit}/top/.rss?t=day&limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/top/.rss?t=day&limit=30"
         elif sort_mode == "top_week":
-            url = f"https://www.reddit.com/r/{subreddit}/top/.rss?t=week&limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/top/.rss?t=week&limit=30"
         else:
-            url = f"https://www.reddit.com/r/{subreddit}/hot/.rss?limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/hot/.rss?limit=30"
     else:
         url = feed_config["url"]
 
@@ -373,7 +372,7 @@ def render_page(target_key):
             selected_global = end_idx - 1
         
         print_header(f"{target_key}{sort_suffix} Feed (Page {current_page + 1}/{max_pages})")
-        print("\033[34m━━━━━━━━━━━━━━━━━━━━━ USE ARROWS TO NAVIGATE ━━━━━━━━━━━━━━━━━━━━━━\033[0m\n")
+        print("\033[34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n")
         
         for local_idx, item in enumerate(page_items):
             global_idx = start_idx + local_idx

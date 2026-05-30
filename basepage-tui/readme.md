@@ -1,4 +1,6 @@
-# basepage
+# basepage.py
+
+<img alt="20260529_153937" src="https://github.com/user-attachments/assets/cb60b6eb-aea6-4134-b8b3-a13208c0f3ae" />
 
 A minimal, text-focused terminal dashboard and feed reader. It aggregates your favorite subreddits, standard RSS, and Atom feeds into a single lightweight, keyboard-driven interface.
 
@@ -65,4 +67,5 @@ FEEDS = {
 * `↑` / `↓` : Scroll text body
 * `o` : Open link in browser
 * `q` / `Enter` : Close reader and return to index
+
 

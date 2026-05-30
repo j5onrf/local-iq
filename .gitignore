@@ -1,2 +1,8 @@
+# Ignore the API usage JSON file
+ai-suggestion/api-usage.json
+ai-suggestion/ai-context.idx
+ai-suggestion/ai-server.sh
+
+# Ignore Python cache directories and bytecode
 __pycache__/
 *.pyc

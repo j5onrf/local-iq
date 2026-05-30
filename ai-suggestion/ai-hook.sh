@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# AI Suggestion v0.7.1 [j5onrf] [05-28-26]
+# AI Suggestion v1.3.2 [j5onrf] [05-26-26]
 
 # 1. Early-exit if shell is not interactive
 [[ $- != *i* ]] && return
@@ -32,23 +32,13 @@ ai_handle_missing() {
 
     if [[ -z "$raw_output" || "$raw_output" == *"Command Not Found"* ]]; then
         cmd=""
-    elif [[ "$raw_output" == "NEW_SUGGESTION:"* ]]; then
-        is_new=true
-        local payload="${raw_output#NEW_SUGGESTION:}"
-        cmd="${payload%%--->*}"
-        local discover_intent="${payload#*--->}"
     else
         cmd="$raw_output"
-        local discover_intent="$intent"
     fi
 
     # Read multiline output into an array using native, high-speed shell methods
     local cmd_opts=()
-    if [[ -n "$ZSH_VERSION" ]]; then
-        cmd_opts=(${(f)raw_output})
-    else
-        mapfile -t cmd_opts <<< "$raw_output"
-    fi
+    mapfile -t cmd_opts <<< "$raw_output"
 
     # Sanitize & Filter: Ensure only well-formed, non-empty "intent|||cmd" mappings exist
     local clean_opts=()
@@ -80,9 +70,15 @@ ai_handle_missing() {
 
             if [[ "$current_cmd" == "DANGER_FLAGGED:"* ]]; then
                 cmd="${current_cmd#DANGER_FLAGGED:}"
+                
+                # Strip redirect noise and replace $HOME with ~ for clean visual display
+                local display_cmd="$cmd"
+                display_cmd="${display_cmd% >/dev/null 2>&1}"
+                display_cmd="${display_cmd//$HOME/\~}"
+
                 # Redraw line and print danger suggestion
                 printf "\r\e[K\e[1;31m⚠️ WARNING: Potentially destructive suggestion detected!\e[0m"
-                printf "\n\e[1;33mAI Suggestion (%d/%d):\e[0m \e[1;36m[%s]\e[0m %s" "$display_idx" "$num_opts" "$current_intent" "$cmd"
+                printf "\n\e[1;33mAI Suggestion (%d/%d):\e[0m \e[1;36m[%s]\e[0m %s" "$display_idx" "$num_opts" "$current_intent" "$display_cmd"
                 printf "\nAre you absolutely sure you want to run this? (y/N): "
                 
                 tput cnorm 2>/dev/null # Restore cursor for confirmation prompt
@@ -97,11 +93,17 @@ ai_handle_missing() {
                 return 0
             else
                 cmd="$current_cmd"
+                
+                # Strip redirect noise and replace $HOME with ~ for clean visual display
+                local display_cmd="$cmd"
+                display_cmd="${display_cmd% >/dev/null 2>&1}"
+                display_cmd="${display_cmd//$HOME/\~}"
+
                 # Redraw line and print standard suggestion with high-contrast intent cues
                 if (( num_opts > 1 )); then
-                    printf "\r\e[K\e[1;32mAI Suggestion (%d/%d) [Up/Down]:\e[0m \e[1;36m[%s]\e[0m %s" "$display_idx" "$num_opts" "$current_intent" "$cmd"
+                    printf "\r\e[K\e[1;32mAI Suggestion (%d/%d) [Up/Down]:\e[0m \e[1;36m[%s]\e[0m %s" "$display_idx" "$num_opts" "$current_intent" "$display_cmd"
                 else
-                    printf "\r\e[K\e[1;32mAI Suggestion:\e[0m \e[1;36m[%s]\e[0m %s" "$current_intent" "$cmd"
+                    printf "\r\e[K\e[1;32mAI Suggestion:\e[0m \e[1;36m[%s]\e[0m %s" "$current_intent" "$display_cmd"
                 fi
                 
                 # Inline action menu
@@ -117,12 +119,14 @@ ai_handle_missing() {
                     if [[ "$next_keys" == "[A" ]]; then
                         # Up Arrow: Cycle backwards
                         current_idx=$(( (current_idx - 1 + num_opts) % num_opts ))
-                        printf "\e[1A" # Move cursor back up to redraw correctly
+                        # Clean both lines completely before redrawing (up, clear, down, clear, up)
+                        printf "\e[1A\r\e[K\n\r\e[K\e[1A"
                         continue
                     elif [[ "$next_keys" == "[B" ]]; then
                         # Down Arrow: Cycle forwards
                         current_idx=$(( (current_idx + 1) % num_opts ))
-                        printf "\e[1A" # Move cursor back up to redraw correctly
+                        # Clean both lines completely before redrawing (up, clear, down, clear, up)
+                        printf "\e[1A\r\e[K\n\r\e[K\e[1A"
                         continue
                     fi
                 fi
@@ -131,12 +135,13 @@ ai_handle_missing() {
                 # Enter selected: Execute
                 if [[ -z "$key" ]]; then
                     tput cnorm 2>/dev/null
-                    echo # Clear prompt line
+                    printf "\e[1A\r\e[K\n\r\e[K\e[1A\r\e[K" # Completely wipe both prompt lines cleanly
                     eval "$cmd"
                     return 0
                 # 't' selected: Edit/Override
                 elif [[ "$key" == "t" || "$key" == "T" ]]; then
                     tput cnorm 2>/dev/null
+                    printf "\e[1A\r\e[K\n\r\e[K\e[1A\r\e[K" # Wipe prompt lines before launching editor
                     echo -e "\n\e[1;34mOverride suggestion. Enter your preferred command:\e[0m"
                     read -e -p "❯ " -i "$cmd" target_command
 
@@ -151,7 +156,8 @@ ai_handle_missing() {
                 # Any other key: Cancel
                 else
                     tput cnorm 2>/dev/null
-                    echo -e "\nCancelled."
+                    printf "\e[1A\r\e[K\n\r\e[K\e[1A\r\e[K" # Clean exit
+                    echo "Cancelled."
                     return 0
                 fi
             fi
@@ -203,15 +209,59 @@ command_not_found_handle() {
 # 3. DIRECT CLI WRAPPER
 # ==============================================================================
 ai() {
-    # Check if local llama-server is online on port 8080 (fails instantly if offline)
-    if ! (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
-        echo "bash: command not found: ai (Local AI server is offline)"
-        return 127
+    # Check if local server is online, but ONLY if we are not in cloud mode
+    if [[ -z "$GEMINI_API_KEY" && -z "$CLOUD_API_KEY" ]]; then
+        if ! (echo > /dev/tcp/localhost/8080) >/dev/null 2>&1; then
+            echo "bash: command not found: ai (Local AI server is offline)"
+            return 127
+        fi
     fi
 
-    # Intercept manual compile and map parameters
-    if [[ "$1" == "--compile" || "$1" == "--map" ]]; then
+    # Intercept manual compile, map, status, and usage parameters (passes all arguments correctly)
+    if [[ "$1" == "--compile" || "$1" == "--map" || "$1" == "--status" || "$1" == "--usage" ]]; then
         "$_AI_PYTHON_BIN" "$_AI_SCRIPT_PATH" "$@"
+        return 0
+    fi
+
+    # Intercept Google Search Grounding toggle (Sourced directly in active parent shell) [3]
+    if [[ "$1" == "--grounding" ]]; then
+        if [[ "$2" == "on" ]]; then
+            export GEMINI_GROUNDING="true"
+            echo -e "\e[1;32m✓ Google Search Grounding enabled for active session.\e[0m"
+        elif [[ "$2" == "off" ]]; then
+            export GEMINI_GROUNDING="false"
+            echo -e "\e[1;30m✓ Google Search Grounding disabled.\e[0m"
+        else
+            # Print current active status based on the default-to-true logic
+            local active_env="${GEMINI_GROUNDING:-true}"
+            if [[ "$active_env" == "true" ]]; then
+                echo -e "Google Search Grounding is currently \e[1;32mENABLED\e[0m (Default)."
+            else
+                echo -e "Google Search Grounding is currently \e[1;30mDISABLED\e[0m."
+            fi
+            echo "Usage: ai --grounding [on|off] to toggle."
+        fi
+        return 0
+    fi
+
+    # Intercept Python Code Execution toggle (Sourced directly in active parent shell) [3]
+    if [[ "$1" == "--code-exec" ]]; then
+        if [[ "$2" == "on" ]]; then
+            export GEMINI_CODE_EXEC="true"
+            echo -e "\e[1;32m✓ Python Code Execution sandbox enabled for active session.\e[0m"
+        elif [[ "$2" == "off" ]]; then
+            export GEMINI_CODE_EXEC="false"
+            echo -e "\e[1;30m✓ Python Code Execution sandbox disabled.\e[0m"
+        else
+            # Print current active status based on the default-to-false logic
+            local active_env="${GEMINI_CODE_EXEC:-false}"
+            if [[ "$active_env" == "true" ]]; then
+                echo -e "Python Code Execution is currently \e[1;32mENABLED\e[0m."
+            else
+                echo -e "Python Code Execution is currently \e[1;30mDISABLED\e[0m (Default)."
+            fi
+            echo "Usage: ai --code-exec [on|off] to toggle."
+        fi
         return 0
     fi
 
