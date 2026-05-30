@@ -3,7 +3,7 @@
 <img alt="20260530_142040" src="https://github.com/user-attachments/assets/06c6a8b5-44f5-4267-a5e5-04c44f54b0bc" />
 A simple, lightweight Terminal User Interface (TUI) media player controller and responsive audio visualizer built in Python. Inspired by the clean, minimal aesthetic of `cliamp`, it integrates seamlessly with `playerctl` to provide global media management directly inside your shell.
 
-## media.sh
+## media.sh media.lua
 <img alt="20260530_153205" src="https://github.com/user-attachments/assets/5e0bfda4-5813-473c-a2ae-f50bc489f802" />
 An ultra-lightweight, purely reactive inline media controller built in Bash. Designed to live directly inside your active shell stream without taking over the window, it uses playerctl and wpctl to provide zero-stutter playback and volume management at the tap of a key.
 
