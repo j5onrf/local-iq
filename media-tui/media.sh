@@ -75,8 +75,6 @@ render_frame() {
 render_frame
 
 while true; do
-    # Remove the timeout (-t) entirely. This makes 'read' block indefinitely 
-    # until a physical key is pressed, causing 0 background system queries.
     IFS= read -r -s -n 1 key
 
     case "$key" in
@@ -89,14 +87,14 @@ while true; do
                 fi
             fi
             ;;
-        "+"|"=") # Volume Up
+        "+"|"="|"}"|"]") # Volume Up (Catches shifted and unshifted keys)
             if command -v wpctl >/dev/null 2>&1; then
-                wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05+
+                wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
             fi
             ;;
-        "-") # Volume Down
+        "-"|"{"|"[") # Volume Down
             if command -v wpctl >/dev/null 2>&1; then
-                wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05-
+                wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
             fi
             ;;
         "n"|"N") # Next Song
@@ -109,13 +107,8 @@ while true; do
         "q"|"Q"|$'\e') # Quit out
             break
             ;;
-        *)
-            # If any other unmapped key is hit, just refresh the frame without running commands
-            ;;
     esac
 
-    # Tiny 0.05s pause after a key action to give the audio server a moment to update metadata before we redraw
-    sleep 0.05
     render_frame
 done
 
