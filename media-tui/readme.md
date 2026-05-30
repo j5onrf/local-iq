@@ -20,10 +20,6 @@ An ultra-lightweight, purely reactive inline media controller built in Bash. Des
   5. **Pinnacle Peaks:** Isolated geometric accent peak shapes.
 - **Resting Audio State:** Displays a pristine, low-profile resting wave profile matching your custom TUI backdrop when media tracks are paused.
 
-# ♫ Media Controller Ecosystem
-
-A collection of lightweight, minimal media controllers and TUIs optimized for fast, zero-stutter playback and volume management.
-
 ---
 
 ## The Tools
